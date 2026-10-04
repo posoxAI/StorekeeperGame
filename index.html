@@ -129,7 +129,16 @@
   .lang button:focus-visible { outline-offset: -2px; }
 
   .level { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .level-name { margin: 0; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .level-name { margin: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+  .flag {
+    align-self: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+    border: 1px solid var(--mark);
+    border-radius: 3px;
+    padding: 1px 7px;
+  }
   .level-word { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .level-n { font-family: var(--display); font-weight: 600; font-size: 46px; line-height: 1; font-variant-numeric: tabular-nums; }
   .level-of { font-family: var(--mono); font-size: 14px; color: var(--muted); }
@@ -260,6 +269,7 @@
       <span class="level-word" id="levelWord">Уровень</span>
       <span class="level-n" id="levelN">01</span>
       <span class="level-of" id="levelOf">/ 12</span>
+      <span class="flag" id="hintFlag" hidden>с подсказкой</span>
     </p>
     <div class="steps">
       <button class="sq" id="prev" type="button" aria-label="Предыдущий уровень">&#8592;</button>
@@ -357,6 +367,9 @@
       overTitle: 'Уровень решён', overStats: 'Ходы {m} · толчки {p} · минимум {par}',
       overPar: 'Это наименьшее возможное число толчков.', overBest: 'Новый рекорд.',
       overAll: 'Все {t} уровней решены.',
+      flag: 'с подсказкой', solvedHint: 'Уровень пройден с подсказкой. В рекорд он не идёт.',
+      overHinted: 'С подсказкой уровень не отмечается решённым и не идёт в рекорд. Пройдите его заново без подсказки.',
+      overHintedKept: 'Это прохождение было с подсказкой и в рекорд не идёт. Прежний рекорд сохранён.',
       nextLevel: 'Следующий уровень', again: 'Пройти ещё раз',
       undo: 'Отменить ход', restart: 'Заново', soundOn: 'Звук: вкл', soundOff: 'Звук: выкл',
       up: 'Вверх', down: 'Вниз', left: 'Влево', right: 'Вправо',
@@ -366,7 +379,7 @@
       dead: 'Отсюда уровень не решить. Вернитесь на {n} {mv}.',
       rewind: 'Вернуться на {n} {mv}', rewound: 'Позиция возвращена. Отсюда уровень решается.',
       hintOff: 'Для этого уровня подсказка недоступна.',
-      note: 'Стрелки или WASD двигают кладовщика; на телефоне работают свайпы, кнопки и нажатие на клетку. Ящик можно только толкать, по одному. Z отменяет ход, R начинает уровень заново, H показывает, какой ящик толкнуть следующим. Минимум — наименьшее число толчков, которым решается уровень; оно найдено полным перебором.'
+      note: 'Стрелки или WASD двигают кладовщика; на телефоне работают свайпы, кнопки и нажатие на клетку. Ящик можно только толкать, по одному. Z отменяет ход, R начинает уровень заново, H показывает, какой ящик толкнуть следующим. Уровень, пройденный с подсказкой, не отмечается решённым и не идёт в рекорд. Минимум — наименьшее число толчков, которым решается уровень; оно найдено полным перебором.'
     },
     en: {
       title: 'Storekeeper', level: 'Level', prev: 'Previous level', next: 'Next level',
@@ -378,6 +391,9 @@
       overTitle: 'Level solved', overStats: 'Moves {m} · pushes {p} · minimum {par}',
       overPar: 'That is the fewest pushes possible.', overBest: 'A new best.',
       overAll: 'All {t} levels solved.',
+      flag: 'hint used', solvedHint: 'Level finished with a hint. It does not count as a best.',
+      overHinted: 'With a hint the level is not marked as solved and does not count as a best. Play it again without a hint.',
+      overHintedKept: 'This run used a hint and does not count. Your earlier best stays.',
       nextLevel: 'Next level', again: 'Play again',
       undo: 'Undo move', restart: 'Restart', soundOn: 'Sound: on', soundOff: 'Sound: off',
       up: 'Up', down: 'Down', left: 'Left', right: 'Right',
@@ -387,7 +403,7 @@
       dead: 'The level cannot be solved from here. Go back {n} {mv}.',
       rewind: 'Go back {n} {mv}', rewound: 'Position restored. The level can be solved from here.',
       hintOff: 'No hint is available for this level.',
-      note: 'Arrow keys or WASD move the storekeeper; on a phone, swipe, use the buttons or tap a cell. A crate can only be pushed, one at a time. Z undoes a move, R restarts the level, H shows which crate to push next. Minimum is the fewest pushes that solve the level, found by exhaustive search.'
+      note: 'Arrow keys or WASD move the storekeeper; on a phone, swipe, use the buttons or tap a cell. A crate can only be pushed, one at a time. Z undoes a move, R restarts the level, H shows which crate to push next. A level finished with a hint is not marked as solved and does not count as a best. Minimum is the fewest pushes that solve the level, found by exhaustive search.'
     }
   };
   // a saved choice wins; otherwise Russian for anyone who lists it among their browser languages
@@ -461,6 +477,7 @@
   var depthCache = {};       // level -> Map from position to the fewest pushes that solve it
   var hintState = null;      // { box, d, stand } for the push being suggested
   var rewindN = 0;           // moves to take back when the position cannot be solved
+  var hintUsed = false;      // a hint was asked for on this attempt, so it will not count
   var clockT = 0;
   var DIR = { u: [0, -1], d: [0, 1], l: [-1, 0], r: [1, 0] };
 
@@ -474,7 +491,7 @@
     return s;
   }
 
-  function loadLevel(i, replay) {
+  function loadLevel(i, replay, hinted) {
     levelIdx = Math.max(0, Math.min(LEVELS.length - 1, i | 0));
     var rows = LEVELS[levelIdx].rows;
     H = rows.length; W = 0;
@@ -511,6 +528,7 @@
     history = []; moves = 0; pushes = 0; solved = false; queue = []; anim = null; face = [0, 1]; lastWin = null;
     OFF = [1, -1, W, -W];
     hintState = null; rewindN = 0; paintHintBtn();
+    hintUsed = !!hinted;
     elOver.hidden = true;
     if (replay) {
       for (var k = 0; k < replay.length && !solved; k++) {
@@ -709,6 +727,7 @@
       if (asked !== levelIdx || solved) return;
       var r = computeHint();
       hintState = null; rewindN = 0;
+      if (r.type === 'push' || r.type === 'dead') { hintUsed = true; paintHud(); persist(); }
       if (r.type === 'push') {
         hintState = r;
         say('hintPush', { dir: r.d === 1 ? 'r' : r.d === -1 ? 'l' : r.d === W ? 'd' : 'u', n: r.left });
@@ -727,11 +746,11 @@
   function win(silent) {
     solved = true; queue = [];
     var par = LEVELS[levelIdx].par, old = records[levelIdx];
-    var better = !old || pushes < old.p || (pushes === old.p && moves < old.m);
+    var better = !hintUsed && (!old || pushes < old.p || (pushes === old.p && moves < old.m));
     if (better) { records[levelIdx] = { p: pushes, m: moves }; save('sklad-records', JSON.stringify(records)); }
     if (silent) return;
-    lastWin = { m: moves, p: pushes, par: par, best: better && !!old };
-    say('solved', { p: pushes, par: par });
+    lastWin = { m: moves, p: pushes, par: par, best: better && !!old, hinted: hintUsed, kept: !!old };
+    if (hintUsed) say('solvedHint'); else say('solved', { p: pushes, par: par });
     paintOver();
     elOver.hidden = false;
     [523, 659, 784, 1047].forEach(function (f, n) { tone(f, 0.22, 'triangle', 0.08, n * 0.09); });
@@ -752,6 +771,7 @@
     $('prev').disabled = levelIdx === 0;
     $('next').disabled = levelIdx === LEVELS.length - 1;
     $('undo').disabled = solved || !history.length;
+    $('hintFlag').hidden = !hintUsed;
     var chips = elChips.children;
     for (var i = 0; i < chips.length; i++) {
       chips[i].classList.toggle('solved', !!records[i]);
@@ -764,9 +784,11 @@
     $('overTitle').textContent = tr('overTitle');
     $('overStats').textContent = tr('overStats', lastWin);
     var lines = [];
-    if (lastWin.p === lastWin.par) lines.push(tr('overPar'));
+    if (lastWin.hinted) lines.push(tr(lastWin.kept ? 'overHintedKept' : 'overHinted'));
+    else if (lastWin.p === lastWin.par) lines.push(tr('overPar'));
     else if (lastWin.best) lines.push(tr('overBest'));
-    if (countSolved() === LEVELS.length) lines.push(tr('overAll', { t: LEVELS.length }));
+    if (!lastWin.hinted && countSolved() === LEVELS.length) lines.push(tr('overAll', { t: LEVELS.length }));
+    $('overGood').classList.toggle('good', !lastWin.hinted);
     $('overGood').textContent = lines.join(' ');
     $('overGood').hidden = !lines.length;
     $('overNext').textContent = tr('nextLevel');
@@ -783,6 +805,7 @@
     document.title = tr('title');
     $('title').textContent = tr('title');
     $('levelWord').textContent = tr('level');
+    $('hintFlag').textContent = tr('flag');
     $('prev').setAttribute('aria-label', tr('prev'));
     $('next').setAttribute('aria-label', tr('next'));
     $('movesL').textContent = tr('moves');
@@ -1033,7 +1056,7 @@
   $('langEn').addEventListener('click', function () { setLang('en'); });
 
   /* ---------- persistence ---------- */
-  function snapshot() { return { level: levelIdx, hist: solved ? '' : historyString() }; }
+  function snapshot() { return { level: levelIdx, hist: solved ? '' : historyString(), hinted: hintUsed && !solved }; }
   function persist() { save('sklad-progress', JSON.stringify(snapshot())); }
 
   /* ---------- boot ---------- */
@@ -1048,7 +1071,7 @@
     }
     readTokens();
     var ok = data && typeof data.level === 'number' && data.level >= 0 && data.level < LEVELS.length;
-    loadLevel(ok ? data.level : 0, ok && typeof data.hist === 'string' ? data.hist.slice(0, 4000) : '');
+    loadLevel(ok ? data.level : 0, ok && typeof data.hist === 'string' ? data.hist.slice(0, 4000) : '', ok && data.hinted === true);
     applyLang();
     requestAnimationFrame(frame);
   }
