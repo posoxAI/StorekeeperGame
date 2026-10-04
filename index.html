@@ -299,6 +299,7 @@
   </div>
 
   <div class="controls">
+    <button class="btn" id="hint" type="button">Подсказка</button>
     <button class="btn" id="undo" type="button">Отменить ход</button>
     <button class="btn" id="restart" type="button">Заново</button>
     <button class="btn" id="sound" type="button" aria-pressed="true">Звук: вкл</button>
@@ -359,7 +360,13 @@
       nextLevel: 'Следующий уровень', again: 'Пройти ещё раз',
       undo: 'Отменить ход', restart: 'Заново', soundOn: 'Звук: вкл', soundOff: 'Звук: выкл',
       up: 'Вверх', down: 'Вниз', left: 'Влево', right: 'Вправо',
-      note: 'Стрелки или WASD двигают кладовщика; на телефоне работают свайпы, кнопки и нажатие на клетку. Ящик можно только толкать, по одному. Z отменяет ход, R начинает уровень заново. Минимум — наименьшее число толчков, которым решается уровень; оно найдено полным перебором.'
+      hint: 'Подсказка', thinking: 'Ищу решение…',
+      hintPush: 'Толкните выделенный ящик {dir}. Толчков до решения: {n}.',
+      dir_u: 'вверх', dir_d: 'вниз', dir_l: 'влево', dir_r: 'вправо',
+      dead: 'Отсюда уровень не решить. Вернитесь на {n} {mv}.',
+      rewind: 'Вернуться на {n} {mv}', rewound: 'Позиция возвращена. Отсюда уровень решается.',
+      hintOff: 'Для этого уровня подсказка недоступна.',
+      note: 'Стрелки или WASD двигают кладовщика; на телефоне работают свайпы, кнопки и нажатие на клетку. Ящик можно только толкать, по одному. Z отменяет ход, R начинает уровень заново, H показывает, какой ящик толкнуть следующим. Минимум — наименьшее число толчков, которым решается уровень; оно найдено полным перебором.'
     },
     en: {
       title: 'Storekeeper', level: 'Level', prev: 'Previous level', next: 'Next level',
@@ -374,7 +381,13 @@
       nextLevel: 'Next level', again: 'Play again',
       undo: 'Undo move', restart: 'Restart', soundOn: 'Sound: on', soundOff: 'Sound: off',
       up: 'Up', down: 'Down', left: 'Left', right: 'Right',
-      note: 'Arrow keys or WASD move the storekeeper; on a phone, swipe, use the buttons or tap a cell. A crate can only be pushed, one at a time. Z undoes a move, R restarts the level. Minimum is the fewest pushes that solve the level, found by exhaustive search.'
+      hint: 'Hint', thinking: 'Looking for a solution…',
+      hintPush: 'Push the highlighted crate {dir}. Pushes to go: {n}.',
+      dir_u: 'up', dir_d: 'down', dir_l: 'left', dir_r: 'right',
+      dead: 'The level cannot be solved from here. Go back {n} {mv}.',
+      rewind: 'Go back {n} {mv}', rewound: 'Position restored. The level can be solved from here.',
+      hintOff: 'No hint is available for this level.',
+      note: 'Arrow keys or WASD move the storekeeper; on a phone, swipe, use the buttons or tap a cell. A crate can only be pushed, one at a time. Z undoes a move, R restarts the level, H shows which crate to push next. Minimum is the fewest pushes that solve the level, found by exhaustive search.'
     }
   };
   // a saved choice wins; otherwise Russian for anyone who lists it among their browser languages
@@ -386,9 +399,18 @@
     return 'en';
   }
   var lang = pickLang();
+  function movesWord(n) {
+    if (lang === 'en') return n === 1 ? 'move' : 'moves';
+    var a = n % 10, b = n % 100;
+    if (a === 1 && b !== 11) return 'ход';
+    if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'хода';
+    return 'ходов';
+  }
   function tr(key, params) {
     var text = STR[lang][key];
-    if (params) for (var k in params) text = text.replace('{' + k + '}', params[k]);
+    if (!params) return text;
+    for (var k in params) text = text.replace('{' + k + '}', k === 'dir' ? STR[lang]['dir_' + params[k]] : params[k]);
+    if (typeof params.n === 'number') text = text.replace('{mv}', movesWord(params.n));
     return text;
   }
   var lastSay = ['prompt', null];
@@ -399,7 +421,7 @@
   function readTokens() {
     var cs = getComputedStyle(document.documentElement);
     ['floor', 'floor-line', 'wall', 'wall-top', 'mark', 'crate', 'crate-edge', 'done', 'done-edge', 'on-done',
-     'keeper', 'keeper-top', 'shadow'].forEach(function (k) { T[k] = cs.getPropertyValue('--' + k).trim(); });
+     'keeper', 'keeper-top', 'shadow', 'accent', 'on-accent'].forEach(function (k) { T[k] = cs.getPropertyValue('--' + k).trim(); });
   }
 
   /* ---------- sound ---------- */
@@ -435,6 +457,11 @@
   var records = loadJson('sklad-records', {});
   var lastWin = null;
   var cell = 48, dpr = 1;
+  var OFF = [1, -1, 1, -1];  // cell offsets for right, left, down, up; set per level
+  var depthCache = {};       // level -> Map from position to the fewest pushes that solve it
+  var hintState = null;      // { box, d, stand } for the push being suggested
+  var rewindN = 0;           // moves to take back when the position cannot be solved
+  var clockT = 0;
   var DIR = { u: [0, -1], d: [0, 1], l: [-1, 0], r: [1, 0] };
 
   function letterOf(dx, dy, pushed) {
@@ -482,6 +509,8 @@
       }
     }
     history = []; moves = 0; pushes = 0; solved = false; queue = []; anim = null; face = [0, 1]; lastWin = null;
+    OFF = [1, -1, W, -W];
+    hintState = null; rewindN = 0; paintHintBtn();
     elOver.hidden = true;
     if (replay) {
       for (var k = 0; k < replay.length && !solved; k++) {
@@ -520,10 +549,12 @@
     }
     history.push({ dx: dx, dy: dy, k: k });
     moves++;
+    if (k >= 0) hintState = null;
+    if (rewindN) { rewindN = 0; paintHintBtn(); }
     if (!silent && !reduceMotion) anim = { t: 0, fx: px, fy: py, k: k };
     px = x; py = y;
     if (!silent) {
-      if (lastSay[0] !== 'prompt') say('prompt');
+      if (lastSay[0] !== 'prompt' && !(hintState && lastSay[0] === 'hintPush')) say('prompt');
       if (k >= 0) tone(goal[boxes[k]] ? 520 : 190, 0.09, 'triangle', 0.07);
     }
     if (k >= 0 && allOnGoals()) win(silent);
@@ -531,9 +562,7 @@
     return k >= 0 ? 2 : 1;
   }
 
-  function undo() {
-    if (solved || !history.length) return;
-    queue = []; anim = null;
+  function undoOne() {
     var h = history.pop();
     if (h.k >= 0) {
       var from = boxes[h.k], back = py * W + px;
@@ -541,8 +570,158 @@
     }
     px -= h.dx; py -= h.dy; moves--;
     face = [h.dx, h.dy];
+  }
+  function undo() {
+    if (solved || !history.length) return;
+    queue = []; anim = null;
+    undoOne();
+    clearHint();
     say('prompt');
     paintHud(); persist();
+  }
+
+  /* ---------- hints ---------- */
+  // Walks from a cell through free floor. Returns the smallest reached cell, which names the region;
+  // floodCells and floodMark hold what was reached.
+  var floodCells = [], floodMark = null;
+  function flood(bset, from) {
+    var min = from, c, i, t;
+    if (!floodMark || floodMark.length !== W * H) floodMark = new Uint8Array(W * H); else floodMark.fill(0);
+    floodCells.length = 0; floodCells.push(from); floodMark[from] = 1;
+    for (var h = 0; h < floodCells.length; h++) {
+      c = floodCells[h];
+      for (i = 0; i < 4; i++) {
+        t = c + OFF[i];
+        if (inside[t] && !floodMark[t] && !bset[t]) { floodMark[t] = 1; floodCells.push(t); if (t < min) min = t; }
+      }
+    }
+    return min;
+  }
+  function numAsc(a, b) { return a - b; }
+  function posKey(boxList, bset, keeperCell) {
+    return boxList.slice().sort(numAsc).join(',') + '|' + flood(bset, keeperCell);
+  }
+
+  // Searches backwards from the solved position by pulling crates. Every position it reaches can be
+  // solved, and the search depth is the fewest pushes that do it. Returns null if the level is too big.
+  function buildDepths() {
+    var N = W * H, depths = new Map(), qB = [], qC = [], qD = [], bset = new Uint8Array(N), done = new Uint8Array(N);
+    var goals = [], i, h, m;
+    for (i = 0; i < N; i++) if (goal[i]) { goals.push(i); bset[i] = 1; }
+    for (i = 0; i < N; i++) {
+      if (!inside[i] || bset[i] || done[i]) continue;
+      m = flood(bset, i);
+      for (h = 0; h < floodCells.length; h++) done[floodCells[h]] = 1;
+      depths.set(goals.join(',') + '|' + m, 0); qB.push(goals); qC.push(m); qD.push(0);
+    }
+    for (h = 0; h < qB.length; h++) {
+      if (depths.size > 700000) return null;
+      var list = qB[h], d0 = qD[h];
+      bset.fill(0);
+      for (i = 0; i < list.length; i++) bset[list[i]] = 1;
+      flood(bset, qC[h]);
+      var cells = floodCells.slice();
+      for (var ci = 0; ci < cells.length; ci++) {
+        var p = cells[ci];
+        for (var di = 0; di < 4; di++) {
+          var d = OFF[di], b = p - d, t = p + d;   // crate behind the keeper, free cell ahead
+          if (!bset[b] || !inside[t] || bset[t]) continue;
+          var nb = list.slice(); nb[nb.indexOf(b)] = p; nb.sort(numAsc);
+          bset[b] = 0; bset[p] = 1;
+          m = flood(bset, t);
+          bset[b] = 1; bset[p] = 0;
+          var key = nb.join(',') + '|' + m;
+          if (depths.has(key)) continue;
+          depths.set(key, d0 + 1); qB.push(nb); qC.push(m); qD.push(d0 + 1);
+        }
+      }
+    }
+    return depths;
+  }
+
+  // What to do next from the current position: a push that keeps the solution shortest, or how far to
+  // go back when the position can no longer be solved.
+  function computeHint() {
+    var depths = depthCache[levelIdx];
+    if (depths === undefined) depths = depthCache[levelIdx] = buildDepths();
+    if (!depths) return { type: 'off' };
+    var N = W * H, bset = new Uint8Array(N), keeper = py * W + px, i, j;
+    for (i = 0; i < boxes.length; i++) bset[boxes[i]] = 1;
+    var here = depths.get(posKey(boxes, bset, keeper));
+
+    if (here === undefined) {
+      // step back through the moves until the position is one the search knows
+      var copy = boxes.slice(), kp = keeper, n = 0;
+      for (i = history.length - 1; i >= 0; i--) {
+        var past = history[i];
+        n++;
+        if (past.k >= 0) copy[past.k] = kp;
+        kp -= past.dy * W + past.dx;
+        if (past.k < 0) continue;
+        bset.fill(0);
+        for (j = 0; j < copy.length; j++) bset[copy[j]] = 1;
+        if (depths.has(posKey(copy, bset, kp))) return { type: 'dead', n: n };
+      }
+      return { type: 'dead', n: history.length };
+    }
+
+    // walking distance from the keeper to every cell it can reach
+    var dist = new Int16Array(N), q = [keeper];
+    for (i = 0; i < N; i++) dist[i] = -1;
+    dist[keeper] = 0;
+    for (var h = 0; h < q.length; h++) for (i = 0; i < 4; i++) {
+      var t = q[h] + OFF[i];
+      if (inside[t] && !bset[t] && dist[t] < 0) { dist[t] = dist[q[h]] + 1; q.push(t); }
+    }
+    var best = null;
+    for (var k = 0; k < boxes.length; k++) for (i = 0; i < 4; i++) {
+      var d = OFF[i], b = boxes[k], stand = b - d, to = b + d;
+      if (!(dist[stand] >= 0) || !inside[to] || bset[to]) continue;
+      var nb = boxes.slice(); nb[k] = to;
+      bset[b] = 0; bset[to] = 1;
+      var after = depths.get(posKey(nb, bset, b));
+      bset[b] = 1; bset[to] = 0;
+      if (after !== here - 1) continue;
+      if (!best || dist[stand] < best.walk) best = { type: 'push', box: b, d: d, stand: stand, walk: dist[stand], left: here };
+    }
+    return best || { type: 'off' };
+  }
+
+  function paintHintBtn() {
+    var b = $('hint');
+    b.textContent = rewindN ? tr('rewind', { n: rewindN }) : tr('hint');
+    b.classList.toggle('primary', !!rewindN);
+  }
+  function clearHint() { hintState = null; rewindN = 0; paintHintBtn(); }
+
+  function askHint() {
+    if (solved) return;
+    queue = []; anim = null;
+    if (rewindN) {
+      for (var n = rewindN; n > 0 && history.length; n--) undoOne();
+      clearHint();
+      say('rewound');
+      paintHud(); persist();
+      return;
+    }
+    var asked = levelIdx;
+    function run() {
+      if (asked !== levelIdx || solved) return;
+      var r = computeHint();
+      hintState = null; rewindN = 0;
+      if (r.type === 'push') {
+        hintState = r;
+        say('hintPush', { dir: r.d === 1 ? 'r' : r.d === -1 ? 'l' : r.d === W ? 'd' : 'u', n: r.left });
+      } else if (r.type === 'dead') {
+        rewindN = r.n;
+        say('dead', { n: r.n });
+      } else {
+        say('hintOff');
+      }
+      paintHintBtn();
+    }
+    // the first hint on a level has to search it; let the status line show before that starts
+    if (depthCache[levelIdx] === undefined) { say('thinking'); setTimeout(run, 30); } else run();
   }
 
   function win(silent) {
@@ -612,6 +791,7 @@
     $('bestL').textContent = tr('best');
     cv.setAttribute('aria-label', tr('board'));
     $('undo').textContent = tr('undo');
+    paintHintBtn();
     $('restart').textContent = tr('restart');
     $('note').textContent = tr('note');
     var pads = $('pad').children, names = { u: 'up', d: 'down', l: 'left', r: 'right' };
@@ -683,6 +863,36 @@
     ctx.fillStyle = T['keeper-top'];
     ctx.beginPath(); ctx.arc(cx0 - fx * c * 0.03, cy0 - fy * c * 0.03, c * 0.17, 0, 6.2832); ctx.fill();
   }
+  function drawHint() {
+    var c = cell, h = hintState;
+    var dx = h.d === 1 ? 1 : h.d === -1 ? -1 : 0, dy = h.d === W ? 1 : h.d === -W ? -1 : 0;
+    var sx = (h.stand % W + 0.5) * c, sy = (((h.stand / W) | 0) + 0.5) * c;
+    var bx = (h.box % W + 0.5) * c, by = (((h.box / W) | 0) + 0.5) * c;
+    ctx.save();
+    ctx.globalAlpha = reduceMotion ? 1 : 0.6 + 0.4 * Math.abs(Math.sin(clockT * 3.2));
+    // where to stand
+    ctx.strokeStyle = T.accent;
+    ctx.lineWidth = Math.max(2, c * 0.06);
+    ctx.setLineDash([c * 0.12, c * 0.09]);
+    ctx.beginPath(); ctx.arc(sx, sy, c * 0.36, 0, 6.2832); ctx.stroke();
+    ctx.setLineDash([]);
+    // which way the crate goes: a light underlay keeps the arrow readable on the crate
+    var x1 = bx - dx * c * 0.2, y1 = by - dy * c * 0.2, x2 = bx + dx * c * 0.62, y2 = by + dy * c * 0.62;
+    var hw = c * 0.17, hl = c * 0.24;
+    function arrow(extra) {
+      ctx.lineWidth = Math.max(3, c * 0.11) + extra;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      ctx.moveTo(x2 - dx * hl - dy * hw, y2 - dy * hl + dx * hw);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x2 - dx * hl + dy * hw, y2 - dy * hl - dx * hw);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = T['on-accent']; arrow(Math.max(3, c * 0.09));
+    ctx.strokeStyle = T.accent; arrow(0);
+    ctx.restore();
+  }
   function draw() {
     var c = cell, x, y, id;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -719,6 +929,7 @@
       if (anim && anim.k === k && last) { bx -= last.dx * (1 - f); by -= last.dy * (1 - f); }
       drawCrate(bx * c, by * c, !!goal[boxes[k]] && !(anim && anim.k === k && f < 1));
     }
+    if (hintState) drawHint();
     var kx = px, ky = py;
     if (anim) { kx = anim.fx + (px - anim.fx) * f; ky = anim.fy + (py - anim.fy) * f; }
     drawKeeper(kx * c, ky * c);
@@ -729,6 +940,7 @@
   function frame(ts) {
     var dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
     lastTs = ts;
+    clockT += dt;
     if (anim) { anim.t += dt; if (anim.t >= 0.085) anim = null; }
     if (queue.length && !anim) {
       walkClock += dt;
@@ -798,13 +1010,15 @@
     var dir = map[e.code];
     if (dir) { e.preventDefault(); go(DIR[dir][0], DIR[dir][1]); return; }
     if (e.code === 'KeyZ' || e.code === 'Backspace') { e.preventDefault(); undo(); return; }
-    if (e.code === 'KeyR') { e.preventDefault(); loadLevel(levelIdx, ''); }
+    if (e.code === 'KeyR') { e.preventDefault(); loadLevel(levelIdx, ''); return; }
+    if (e.code === 'KeyH') { e.preventDefault(); askHint(); }
   });
 
   $('pad').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-dir]');
     if (b) { var d = DIR[b.getAttribute('data-dir')]; go(d[0], d[1]); }
   });
+  $('hint').addEventListener('click', askHint);
   $('undo').addEventListener('click', undo);
   $('restart').addEventListener('click', function () { loadLevel(levelIdx, ''); });
   $('prev').addEventListener('click', function () { loadLevel(levelIdx - 1, ''); });
