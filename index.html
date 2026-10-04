@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>Кладовщик</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&family=Oswald:wght@500;600&display=swap">
+<style>
+  /* Layout: one column as wide as the warehouse floor; the level number reads like a bay sign, everything else stays quiet. */
+  :root {
+    --bg: #E8EAE6;
+    --ink: #1D2326;
+    --muted: #586266;
+    --line: #C4C9C5;
+    --card: #F7F8F5;
+    --accent: #17508A;
+    --on-accent: #FFFFFF;
+    --floor: #D8DBD5;
+    --floor-line: #C8CCC5;
+    --wall: #3E4A55;
+    --wall-top: #57656F;
+    --mark: #D99A00;
+    --crate: #C99A5B;
+    --crate-edge: #8E6234;
+    --done: #4A9560;
+    --done-edge: #2C6A40;
+    --done-soft: #DCEADD;
+    --on-done: #FFFFFF;
+    --keeper: #2A63C4;
+    --keeper-top: #8FB4F2;
+    --shadow: rgba(20, 28, 32, 0.22);
+    --display: "Oswald", "Arial Narrow", "Roboto Condensed", sans-serif;
+    --body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181B;
+      --ink: #E7ECEA;
+      --muted: #97A2A4;
+      --line: #2C343A;
+      --card: #1D2327;
+      --accent: #84B6F2;
+      --on-accent: #0C1A2B;
+      --floor: #242A2E;
+      --floor-line: #2E353A;
+      --wall: #56636D;
+      --wall-top: #6F7D87;
+      --mark: #EFB31E;
+      --crate: #B98A4E;
+      --crate-edge: #6F4C25;
+      --done: #57A76D;
+      --done-edge: #2C6A40;
+      --done-soft: #21372A;
+      --on-done: #FFFFFF;
+      --keeper: #4B86EA;
+      --keeper-top: #A9C8F8;
+      --shadow: rgba(0, 0, 0, 0.45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181B;
+    --ink: #E7ECEA;
+    --muted: #97A2A4;
+    --line: #2C343A;
+    --card: #1D2327;
+    --accent: #84B6F2;
+    --on-accent: #0C1A2B;
+    --floor: #242A2E;
+    --floor-line: #2E353A;
+    --wall: #56636D;
+    --wall-top: #6F7D87;
+    --mark: #EFB31E;
+    --crate: #B98A4E;
+    --crate-edge: #6F4C25;
+    --done: #57A76D;
+    --done-edge: #2C6A40;
+    --done-soft: #21372A;
+    --on-done: #FFFFFF;
+    --keeper: #4B86EA;
+    --keeper-top: #A9C8F8;
+    --shadow: rgba(0, 0, 0, 0.45);
+    color-scheme: dark;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.5;
+    padding-inline: 16px;
+    padding-block: 14px 22px;
+  }
+  .app {
+    width: min(100%, 520px);
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  button { font: inherit; color: inherit; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .lang button {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    background: none;
+    border: 0;
+    padding: 4px 9px;
+    cursor: pointer;
+  }
+  .lang button[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); }
+  .lang button:focus-visible { outline-offset: -2px; }
+
+  .level { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .level-name { margin: 0; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .level-word { font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .level-n { font-family: var(--display); font-weight: 600; font-size: 46px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .level-of { font-family: var(--mono); font-size: 14px; color: var(--muted); }
+  .steps { display: flex; gap: 6px; }
+  .sq {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .sq:hover:not(:disabled) { border-color: var(--muted); }
+  .sq:disabled { color: var(--line); cursor: default; }
+
+  .chips { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
+  .chip {
+    position: relative;
+    height: 30px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .chip.solved { color: var(--ink); background: var(--done-soft); border-color: var(--done); }
+  .chip.solved::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    top: 3px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--done);
+  }
+  .chip[aria-current="true"] { color: var(--ink); font-weight: 600; outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .stat { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .stat-l { font-size: 11px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+  .stat-n { font-family: var(--mono); font-size: 22px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+
+  .board {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .board canvas { display: block; max-width: 100%; border-radius: 4px; cursor: pointer; }
+  .over {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(300px, calc(100% - 24px));
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .over h2 {
+    margin: 0;
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 24px;
+    line-height: 1.15;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    text-wrap: balance;
+  }
+  .over p { margin: 0; color: var(--muted); }
+  .over p.good { color: var(--ink); font-weight: 600; }
+  .over-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .btn {
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 7px 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--muted); }
+  .btn:disabled { color: var(--muted); cursor: default; }
+  .btn.primary { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+
+  .status { margin: 0; min-height: 1.5em; font-weight: 500; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pad { display: none; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(2, 56px); gap: 6px; justify-content: center; }
+  .pad .sq { width: 56px; height: 56px; font-size: 22px; }
+  .pad .up { grid-column: 2; }
+  .pad .left { grid-column: 1; grid-row: 2; }
+  .pad .down { grid-column: 2; grid-row: 2; }
+  .pad .right { grid-column: 3; grid-row: 2; }
+  @media (pointer: coarse) { .pad { display: grid; } }
+  .note { margin: 0; color: var(--muted); font-size: 13px; }
+  @media (max-width: 440px) {
+    .chips { grid-template-columns: repeat(6, 1fr); }
+    .level-n { font-size: 40px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <h1 id="title">Кладовщик</h1>
+    <span class="lang" role="group" aria-label="Язык / Language">
+      <button type="button" id="langRu" aria-pressed="true">RU</button>
+      <button type="button" id="langEn" aria-pressed="false">EN</button>
+    </span>
+  </header>
+
+  <div class="level">
+    <p class="level-name">
+      <span class="level-word" id="levelWord">Уровень</span>
+      <span class="level-n" id="levelN">01</span>
+      <span class="level-of" id="levelOf">/ 12</span>
+    </p>
+    <div class="steps">
+      <button class="sq" id="prev" type="button" aria-label="Предыдущий уровень">&#8592;</button>
+      <button class="sq" id="next" type="button" aria-label="Следующий уровень">&#8594;</button>
+    </div>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="stats">
+    <div class="stat"><span class="stat-l" id="movesL">Ходы</span><span class="stat-n" id="moves">0</span></div>
+    <div class="stat"><span class="stat-l" id="pushesL">Толчки</span><span class="stat-n" id="pushes">0</span></div>
+    <div class="stat"><span class="stat-l" id="parL">Минимум</span><span class="stat-n" id="par">0</span></div>
+    <div class="stat"><span class="stat-l" id="bestL">Рекорд</span><span class="stat-n" id="best">–</span></div>
+  </div>
+
+  <div class="board" id="board">
+    <canvas id="cv" role="img" aria-label="Склад"></canvas>
+    <div class="over" id="over" hidden>
+      <h2 id="overTitle">Уровень решён</h2>
+      <p id="overStats"></p>
+      <p class="good" id="overGood" hidden></p>
+      <div class="over-actions">
+        <button class="btn primary" id="overNext" type="button">Следующий уровень</button>
+        <button class="btn" id="overAgain" type="button">Пройти ещё раз</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="status" id="status" aria-live="polite">Задвиньте все ящики на отмеченные места.</p>
+
+  <div class="pad" id="pad">
+    <button class="sq up" type="button" data-dir="u" aria-label="Вверх">&#8593;</button>
+    <button class="sq left" type="button" data-dir="l" aria-label="Влево">&#8592;</button>
+    <button class="sq down" type="button" data-dir="d" aria-label="Вниз">&#8595;</button>
+    <button class="sq right" type="button" data-dir="r" aria-label="Вправо">&#8594;</button>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="undo" type="button">Отменить ход</button>
+    <button class="btn" id="restart" type="button">Заново</button>
+    <button class="btn" id="sound" type="button" aria-pressed="true">Звук: вкл</button>
+  </div>
+
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* Levels are original, in the usual XSB notation: # wall, @ keeper, $ crate, . marked spot, * crate on a spot,
+     + keeper on a spot. "par" is the fewest pushes that solve the level, found by exhaustive search. */
+  var LEVELS = [
+    { par: 4, rows: ["  ######", "### $ .##", "#   #   #", "# #@  # #", "#   #$  #", "##    .##", " #######"] },
+    { par: 6, rows: [" #####", "## $.##", "#    .#", "#  #  #", "# $@  #", "##   ##", " #####"] },
+    { par: 9, rows: ["#######", "#     #", "# #$# #", "#  $  #", "# # # #", "#.  @.#", "#######"] },
+    { par: 11, rows: ["########", "#      #", "# #$ # #", "# $   @#", "# #  # #", "#    ..#", "########"] },
+    { par: 13, rows: ["#######", "# .#  #", "#  $$ #", "##.#@ #", "#   $ #", "#.  ###", "#####"] },
+    { par: 15, rows: ["  #####", "###   #", "#   $$#", "#.##$ ##", "#.     #", "# @ #. #", "########"] },
+    { par: 17, rows: ["######", "#    ###", "# $# $ #", "# $@   #", "###  #.#", "  #  ..#", "  ######"] },
+    { par: 18, rows: ["  ####", "###  ###", "# $    #", "#@ #*  #", "#..$   #", "########"] },
+    { par: 22, rows: [" ######", "##   .#", "# $## ##", "#   @. #", "##$#$  #", " #   .##", " ######"] },
+    { par: 23, rows: ["#########", "#  #  . #", "# $   # #", "# #    .#", "#  $$# .#", "#   $@. #", "#########"] },
+    { par: 24, rows: ["########", "#   #  #", "#    $ #", "###$#$ #", "#.  *@ #", "#  #. .#", "########"] },
+    { par: 27, rows: ["#########", "#   #. .#", "#    $ .#", "#.$###  #", "#$   $ @#", "#   #   #", "#########"] }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var elBoard = $('board'), cv = $('cv'), ctx = cv.getContext('2d');
+  var elStatus = $('status'), elOver = $('over'), elChips = $('chips');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- storage (optional) ---------- */
+  function load(key, fallback) {
+    try { var v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, String(value)); } catch (e) { /* storage is optional */ }
+  }
+  function loadJson(key, fallback) {
+    try { var v = JSON.parse(load(key, 'null')); return v === null ? fallback : v; } catch (e) { return fallback; }
+  }
+
+  /* ---------- language ---------- */
+  var STR = {
+    ru: {
+      title: 'Кладовщик', level: 'Уровень', prev: 'Предыдущий уровень', next: 'Следующий уровень',
+      moves: 'Ходы', pushes: 'Толчки', par: 'Минимум', best: 'Рекорд', board: 'Склад, вид сверху',
+      chip: 'Уровень {n}', chipSolved: 'Уровень {n}, решён',
+      prompt: 'Задвиньте все ящики на отмеченные места.',
+      blocked: 'Ящик упёрся: за ним стена или другой ящик.',
+      solved: 'Уровень решён. Толчков: {p}, минимум {par}.',
+      overTitle: 'Уровень решён', overStats: 'Ходы {m} · толчки {p} · минимум {par}',
+      overPar: 'Это наименьшее возможное число толчков.', overBest: 'Новый рекорд.',
+      overAll: 'Все {t} уровней решены.',
+      nextLevel: 'Следующий уровень', again: 'Пройти ещё раз',
+      undo: 'Отменить ход', restart: 'Заново', soundOn: 'Звук: вкл', soundOff: 'Звук: выкл',
+      up: 'Вверх', down: 'Вниз', left: 'Влево', right: 'Вправо',
+      note: 'Стрелки или WASD двигают кладовщика; на телефоне работают свайпы, кнопки и нажатие на клетку. Ящик можно только толкать, по одному. Z отменяет ход, R начинает уровень заново. Минимум — наименьшее число толчков, которым решается уровень; оно найдено полным перебором.'
+    },
+    en: {
+      title: 'Storekeeper', level: 'Level', prev: 'Previous level', next: 'Next level',
+      moves: 'Moves', pushes: 'Pushes', par: 'Minimum', best: 'Best', board: 'Warehouse, top view',
+      chip: 'Level {n}', chipSolved: 'Level {n}, solved',
+      prompt: 'Push every crate onto a marked spot.',
+      blocked: 'The crate is stuck: a wall or another crate is behind it.',
+      solved: 'Level solved. Pushes: {p}, minimum {par}.',
+      overTitle: 'Level solved', overStats: 'Moves {m} · pushes {p} · minimum {par}',
+      overPar: 'That is the fewest pushes possible.', overBest: 'A new best.',
+      overAll: 'All {t} levels solved.',
+      nextLevel: 'Next level', again: 'Play again',
+      undo: 'Undo move', restart: 'Restart', soundOn: 'Sound: on', soundOff: 'Sound: off',
+      up: 'Up', down: 'Down', left: 'Left', right: 'Right',
+      note: 'Arrow keys or WASD move the storekeeper; on a phone, swipe, use the buttons or tap a cell. A crate can only be pushed, one at a time. Z undoes a move, R restarts the level. Minimum is the fewest pushes that solve the level, found by exhaustive search.'
+    }
+  };
+  // a saved choice wins; otherwise Russian for anyone who lists it among their browser languages
+  function pickLang() {
+    var saved = load('sklad-lang', '');
+    if (saved === 'ru' || saved === 'en') return saved;
+    var list = (navigator.languages && navigator.languages.length) ? navigator.languages : [navigator.language || 'en'];
+    for (var k = 0; k < list.length; k++) if (String(list[k]).toLowerCase().indexOf('ru') === 0) return 'ru';
+    return 'en';
+  }
+  var lang = pickLang();
+  function tr(key, params) {
+    var text = STR[lang][key];
+    if (params) for (var k in params) text = text.replace('{' + k + '}', params[k]);
+    return text;
+  }
+  var lastSay = ['prompt', null];
+  function say(key, params) { lastSay = [key, params || null]; elStatus.textContent = tr(key, params); }
+
+  /* ---------- theme tokens for the canvas ---------- */
+  var T = {};
+  function readTokens() {
+    var cs = getComputedStyle(document.documentElement);
+    ['floor', 'floor-line', 'wall', 'wall-top', 'mark', 'crate', 'crate-edge', 'done', 'done-edge', 'on-done',
+     'keeper', 'keeper-top', 'shadow'].forEach(function (k) { T[k] = cs.getPropertyValue('--' + k).trim(); });
+  }
+
+  /* ---------- sound ---------- */
+  var actx = null;
+  var soundOn = load('sklad-sound', '1') === '1';
+  function tone(freq, dur, type, gain, delay, slideTo) {
+    if (!soundOn) return;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      actx = actx || new AC();
+      if (actx.state === 'suspended') actx.resume();
+      var t0 = actx.currentTime + (delay || 0);
+      var o = actx.createOscillator(), g = actx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t0);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+      g.gain.setValueAtTime(gain, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t0); o.stop(t0 + dur + 0.02);
+    } catch (e) { /* sound is optional */ }
+  }
+
+  /* ---------- state ---------- */
+  var levelIdx = 0;
+  var W = 0, H = 0, wall, goal, inside, wallShown, boxAt, boxes;
+  var px = 0, py = 0, face = [0, 1];
+  var history = [];     // { dx, dy, k } with k = index of the pushed crate or -1
+  var moves = 0, pushes = 0, solved = false;
+  var queue = [];       // steps still to walk after a tap
+  var anim = null;      // { t, fx, fy, k }
+  var records = loadJson('sklad-records', {});
+  var lastWin = null;
+  var cell = 48, dpr = 1;
+  var DIR = { u: [0, -1], d: [0, 1], l: [-1, 0], r: [1, 0] };
+
+  function letterOf(dx, dy, pushed) {
+    var c = dx === 1 ? 'r' : dx === -1 ? 'l' : dy === 1 ? 'd' : 'u';
+    return pushed ? c.toUpperCase() : c;
+  }
+  function historyString() {
+    var s = '';
+    for (var i = 0; i < history.length; i++) s += letterOf(history[i].dx, history[i].dy, history[i].k >= 0);
+    return s;
+  }
+
+  function loadLevel(i, replay) {
+    levelIdx = Math.max(0, Math.min(LEVELS.length - 1, i | 0));
+    var rows = LEVELS[levelIdx].rows;
+    H = rows.length; W = 0;
+    for (var y = 0; y < H; y++) W = Math.max(W, rows[y].length);
+    wall = new Uint8Array(W * H); goal = new Uint8Array(W * H);
+    inside = new Uint8Array(W * H); wallShown = new Uint8Array(W * H);
+    boxAt = new Int16Array(W * H); boxes = [];
+    for (var n = 0; n < W * H; n++) boxAt[n] = -1;
+    for (y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      var c = rows[y].charAt(x), id = y * W + x;
+      if (c === '#') wall[id] = 1;
+      if (c === '.' || c === '+' || c === '*') goal[id] = 1;
+      if (c === '$' || c === '*') { boxAt[id] = boxes.length; boxes.push(id); }
+      if (c === '@' || c === '+') { px = x; py = y; }
+    }
+    // everything the keeper could ever reach is the floor; walls are drawn only where they border it
+    var stack = [py * W + px]; inside[stack[0]] = 1;
+    while (stack.length) {
+      var cur = stack.pop(), cxx = cur % W, cyy = (cur / W) | 0;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        var nx = cxx + d[0], ny = cyy + d[1];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
+        var ni = ny * W + nx;
+        if (!wall[ni] && !inside[ni]) { inside[ni] = 1; stack.push(ni); }
+      });
+    }
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      if (!wall[y * W + x]) continue;
+      for (var oy = -1; oy <= 1; oy++) for (var ox = -1; ox <= 1; ox++) {
+        var ax = x + ox, ay = y + oy;
+        if (ax >= 0 && ay >= 0 && ax < W && ay < H && inside[ay * W + ax]) wallShown[y * W + x] = 1;
+      }
+    }
+    history = []; moves = 0; pushes = 0; solved = false; queue = []; anim = null; face = [0, 1]; lastWin = null;
+    elOver.hidden = true;
+    if (replay) {
+      for (var k = 0; k < replay.length && !solved; k++) {
+        var d = DIR[replay.charAt(k).toLowerCase()];
+        if (!d || !step(d[0], d[1], true)) break;
+      }
+      if (solved) { loadLevel(levelIdx, ''); return; }
+    }
+    say('prompt');
+    layout();
+    paintHud();
+    persist();
+  }
+
+  function allOnGoals() {
+    for (var k = 0; k < boxes.length; k++) if (!goal[boxes[k]]) return false;
+    return true;
+  }
+
+  // returns 0 when nothing moved, 1 for a walk, 2 for a push
+  function step(dx, dy, silent) {
+    if (solved) return 0;
+    face = [dx, dy];
+    var x = px + dx, y = py + dy;
+    if (x < 0 || y < 0 || x >= W || y >= H) return 0;
+    var t = y * W + x;
+    if (wall[t]) return 0;
+    var k = boxAt[t];
+    if (k >= 0) {
+      var bx = x + dx, by = y + dy, b2 = by * W + bx;
+      if (bx < 0 || by < 0 || bx >= W || by >= H || wall[b2] || boxAt[b2] >= 0) {
+        if (!silent) { say('blocked'); tone(130, 0.12, 'square', 0.045); }
+        return 0;
+      }
+      boxAt[t] = -1; boxAt[b2] = k; boxes[k] = b2; pushes++;
+    }
+    history.push({ dx: dx, dy: dy, k: k });
+    moves++;
+    if (!silent && !reduceMotion) anim = { t: 0, fx: px, fy: py, k: k };
+    px = x; py = y;
+    if (!silent) {
+      if (lastSay[0] !== 'prompt') say('prompt');
+      if (k >= 0) tone(goal[boxes[k]] ? 520 : 190, 0.09, 'triangle', 0.07);
+    }
+    if (k >= 0 && allOnGoals()) win(silent);
+    if (!silent) { paintHud(); persist(); }
+    return k >= 0 ? 2 : 1;
+  }
+
+  function undo() {
+    if (solved || !history.length) return;
+    queue = []; anim = null;
+    var h = history.pop();
+    if (h.k >= 0) {
+      var from = boxes[h.k], back = py * W + px;
+      boxAt[from] = -1; boxAt[back] = h.k; boxes[h.k] = back; pushes--;
+    }
+    px -= h.dx; py -= h.dy; moves--;
+    face = [h.dx, h.dy];
+    say('prompt');
+    paintHud(); persist();
+  }
+
+  function win(silent) {
+    solved = true; queue = [];
+    var par = LEVELS[levelIdx].par, old = records[levelIdx];
+    var better = !old || pushes < old.p || (pushes === old.p && moves < old.m);
+    if (better) { records[levelIdx] = { p: pushes, m: moves }; save('sklad-records', JSON.stringify(records)); }
+    if (silent) return;
+    lastWin = { m: moves, p: pushes, par: par, best: better && !!old };
+    say('solved', { p: pushes, par: par });
+    paintOver();
+    elOver.hidden = false;
+    [523, 659, 784, 1047].forEach(function (f, n) { tone(f, 0.22, 'triangle', 0.08, n * 0.09); });
+    var target = $('overNext').disabled ? $('overAgain') : $('overNext');
+    setTimeout(function () { try { target.focus({ preventScroll: true }); } catch (e) { /* focus is a convenience */ } }, 60);
+  }
+
+  /* ---------- HUD ---------- */
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function countSolved() { var c = 0; for (var i = 0; i < LEVELS.length; i++) if (records[i]) c++; return c; }
+  function paintHud() {
+    $('levelN').textContent = pad2(levelIdx + 1);
+    $('levelOf').textContent = '/ ' + LEVELS.length;
+    $('moves').textContent = moves;
+    $('pushes').textContent = pushes;
+    $('par').textContent = LEVELS[levelIdx].par;
+    $('best').textContent = records[levelIdx] ? records[levelIdx].p : '–';
+    $('prev').disabled = levelIdx === 0;
+    $('next').disabled = levelIdx === LEVELS.length - 1;
+    $('undo').disabled = solved || !history.length;
+    var chips = elChips.children;
+    for (var i = 0; i < chips.length; i++) {
+      chips[i].classList.toggle('solved', !!records[i]);
+      chips[i].setAttribute('aria-current', i === levelIdx ? 'true' : 'false');
+      chips[i].setAttribute('aria-label', tr(records[i] ? 'chipSolved' : 'chip', { n: i + 1 }));
+    }
+  }
+  function paintOver() {
+    if (!lastWin) return;
+    $('overTitle').textContent = tr('overTitle');
+    $('overStats').textContent = tr('overStats', lastWin);
+    var lines = [];
+    if (lastWin.p === lastWin.par) lines.push(tr('overPar'));
+    else if (lastWin.best) lines.push(tr('overBest'));
+    if (countSolved() === LEVELS.length) lines.push(tr('overAll', { t: LEVELS.length }));
+    $('overGood').textContent = lines.join(' ');
+    $('overGood').hidden = !lines.length;
+    $('overNext').textContent = tr('nextLevel');
+    $('overNext').disabled = levelIdx === LEVELS.length - 1;
+    $('overNext').hidden = levelIdx === LEVELS.length - 1;
+    $('overAgain').textContent = tr('again');
+  }
+  function paintSound() {
+    $('sound').textContent = soundOn ? tr('soundOn') : tr('soundOff');
+    $('sound').setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  }
+  function applyLang() {
+    document.documentElement.lang = lang;
+    document.title = tr('title');
+    $('title').textContent = tr('title');
+    $('levelWord').textContent = tr('level');
+    $('prev').setAttribute('aria-label', tr('prev'));
+    $('next').setAttribute('aria-label', tr('next'));
+    $('movesL').textContent = tr('moves');
+    $('pushesL').textContent = tr('pushes');
+    $('parL').textContent = tr('par');
+    $('bestL').textContent = tr('best');
+    cv.setAttribute('aria-label', tr('board'));
+    $('undo').textContent = tr('undo');
+    $('restart').textContent = tr('restart');
+    $('note').textContent = tr('note');
+    var pads = $('pad').children, names = { u: 'up', d: 'down', l: 'left', r: 'right' };
+    for (var i = 0; i < pads.length; i++) pads[i].setAttribute('aria-label', tr(names[pads[i].getAttribute('data-dir')]));
+    $('langRu').setAttribute('aria-pressed', lang === 'ru' ? 'true' : 'false');
+    $('langEn').setAttribute('aria-pressed', lang === 'en' ? 'true' : 'false');
+    elStatus.textContent = tr(lastSay[0], lastSay[1]);
+    paintSound();
+    paintOver();
+    if (W) paintHud();
+  }
+  function setLang(next) {
+    if (next === lang) return;
+    lang = next;
+    save('sklad-lang', lang);
+    applyLang();
+  }
+
+  /* ---------- drawing ---------- */
+  function layout() {
+    var avail = elBoard.clientWidth || 360;
+    cell = Math.max(18, Math.floor(Math.min(avail / W, 64)));
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cv.style.width = W * cell + 'px';
+    cv.style.height = H * cell + 'px';
+    cv.width = Math.round(W * cell * dpr);
+    cv.height = Math.round(H * cell * dpr);
+  }
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+  }
+  function drawCrate(x, y, onGoal) {
+    var c = cell, m = c * 0.1, s = c - m * 2;
+    ctx.fillStyle = onGoal ? T.done : T.crate;
+    ctx.strokeStyle = onGoal ? T['done-edge'] : T['crate-edge'];
+    ctx.lineWidth = Math.max(1.5, c * 0.06);
+    rrect(x + m, y + m, s, s, c * 0.07); ctx.fill(); ctx.stroke();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (onGoal) {
+      ctx.strokeStyle = T['on-done'];
+      ctx.lineWidth = Math.max(2, c * 0.09);
+      ctx.beginPath();
+      ctx.moveTo(x + c * 0.3, y + c * 0.52); ctx.lineTo(x + c * 0.44, y + c * 0.66); ctx.lineTo(x + c * 0.71, y + c * 0.36);
+      ctx.stroke();
+    } else {
+      // two planks and a brace
+      ctx.lineWidth = Math.max(1, c * 0.035);
+      ctx.beginPath();
+      ctx.moveTo(x + m, y + c * 0.36); ctx.lineTo(x + c - m, y + c * 0.36);
+      ctx.moveTo(x + m, y + c * 0.64); ctx.lineTo(x + c - m, y + c * 0.64);
+      ctx.moveTo(x + c * 0.24, y + c * 0.64); ctx.lineTo(x + c * 0.76, y + c * 0.36);
+      ctx.stroke();
+    }
+  }
+  function drawKeeper(x, y) {
+    var c = cell, cx0 = x + c / 2, cy0 = y + c / 2, fx = face[0], fy = face[1];
+    ctx.fillStyle = T.shadow;
+    ctx.beginPath(); ctx.ellipse(cx0, cy0 + c * 0.06, c * 0.34, c * 0.3, 0, 0, 6.2832); ctx.fill();
+    // hands reach toward the way the keeper faces
+    ctx.fillStyle = T['keeper-top'];
+    [-1, 1].forEach(function (side) {
+      ctx.beginPath();
+      ctx.arc(cx0 + fx * c * 0.27 - fy * side * c * 0.17, cy0 + fy * c * 0.27 + fx * side * c * 0.17, c * 0.085, 0, 6.2832);
+      ctx.fill();
+    });
+    ctx.fillStyle = T.keeper;
+    ctx.beginPath(); ctx.arc(cx0, cy0, c * 0.29, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = T['keeper-top'];
+    ctx.beginPath(); ctx.arc(cx0 - fx * c * 0.03, cy0 - fy * c * 0.03, c * 0.17, 0, 6.2832); ctx.fill();
+  }
+  function draw() {
+    var c = cell, x, y, id;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W * c, H * c);
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      id = y * W + x;
+      if (inside[id]) {
+        ctx.fillStyle = T.floor; ctx.fillRect(x * c, y * c, c, c);
+        ctx.fillStyle = T['floor-line']; ctx.fillRect(x * c, y * c, c, 1); ctx.fillRect(x * c, y * c, 1, c);
+      } else if (wallShown[id]) {
+        ctx.fillStyle = T.wall; ctx.fillRect(x * c, y * c, c, c);
+        ctx.fillStyle = T['wall-top']; rrect(x * c + c * 0.09, y * c + c * 0.09, c * 0.82, c * 0.82, c * 0.06); ctx.fill();
+      }
+    }
+    // marked spots: corner brackets painted on the floor
+    ctx.strokeStyle = T.mark; ctx.fillStyle = T.mark;
+    ctx.lineWidth = Math.max(1.5, c * 0.065); ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    for (id = 0; id < W * H; id++) {
+      if (!goal[id]) continue;
+      x = (id % W) * c; y = ((id / W) | 0) * c;
+      var a = c * 0.2, b = c * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(x + a, y + a + b); ctx.lineTo(x + a, y + a); ctx.lineTo(x + a + b, y + a);
+      ctx.moveTo(x + c - a - b, y + a); ctx.lineTo(x + c - a, y + a); ctx.lineTo(x + c - a, y + a + b);
+      ctx.moveTo(x + c - a, y + c - a - b); ctx.lineTo(x + c - a, y + c - a); ctx.lineTo(x + c - a - b, y + c - a);
+      ctx.moveTo(x + a + b, y + c - a); ctx.lineTo(x + a, y + c - a); ctx.lineTo(x + a, y + c - a - b);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(x + c / 2, y + c / 2, c * 0.055, 0, 6.2832); ctx.fill();
+    }
+    var f = anim ? Math.min(1, anim.t / 0.085) : 1;
+    var last = history.length ? history[history.length - 1] : null;
+    for (var k = 0; k < boxes.length; k++) {
+      var bx = boxes[k] % W, by = (boxes[k] / W) | 0;
+      if (anim && anim.k === k && last) { bx -= last.dx * (1 - f); by -= last.dy * (1 - f); }
+      drawCrate(bx * c, by * c, !!goal[boxes[k]] && !(anim && anim.k === k && f < 1));
+    }
+    var kx = px, ky = py;
+    if (anim) { kx = anim.fx + (px - anim.fx) * f; ky = anim.fy + (py - anim.fy) * f; }
+    drawKeeper(kx * c, ky * c);
+  }
+
+  /* ---------- loop ---------- */
+  var lastTs = 0, walkClock = 0;
+  function frame(ts) {
+    var dt = Math.min(0.05, (ts - lastTs) / 1000 || 0);
+    lastTs = ts;
+    if (anim) { anim.t += dt; if (anim.t >= 0.085) anim = null; }
+    if (queue.length && !anim) {
+      walkClock += dt;
+      if (reduceMotion ? walkClock > 0.07 : true) {
+        walkClock = 0;
+        var d = queue.shift();
+        if (!step(d[0], d[1], false)) queue = [];
+      }
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- input ---------- */
+  function go(dx, dy) { queue = []; anim = null; step(dx, dy, false); }
+
+  // walk to a tapped cell along the shortest free path
+  function pathTo(tx, ty) {
+    var start = py * W + px, dst = ty * W + tx, prev = new Int16Array(W * H), q = [start];
+    for (var n = 0; n < W * H; n++) prev[n] = -2;
+    prev[start] = -1;
+    for (var h = 0; h < q.length; h++) {
+      var c = q[h];
+      if (c === dst) break;
+      var x = c % W, y = (c / W) | 0;
+      [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        var nx = x + d[0], ny = y + d[1];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
+        var ni = ny * W + nx;
+        if (prev[ni] === -2 && !wall[ni] && boxAt[ni] < 0) { prev[ni] = c; q.push(ni); }
+      });
+    }
+    if (prev[dst] === -2) return null;
+    var out = [];
+    for (var cur = dst; prev[cur] !== -1; cur = prev[cur]) out.unshift([(cur % W) - (prev[cur] % W), ((cur / W) | 0) - ((prev[cur] / W) | 0)]);
+    return out;
+  }
+  function tapCell(tx, ty) {
+    if (solved || tx < 0 || ty < 0 || tx >= W || ty >= H) return;
+    var dx = tx - px, dy = ty - py;
+    if (Math.abs(dx) + Math.abs(dy) === 1) { go(dx, dy); return; }
+    var path = pathTo(tx, ty);
+    if (path && path.length) { anim = null; queue = path; }
+  }
+
+  var downAt = null;
+  elBoard.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.over')) return;
+    downAt = { x: e.clientX, y: e.clientY };
+  });
+  elBoard.addEventListener('pointerup', function (e) {
+    if (!downAt || e.target.closest('.over')) { downAt = null; return; }
+    var dx = e.clientX - downAt.x, dy = e.clientY - downAt.y;
+    downAt = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > 22) {
+      if (Math.abs(dx) > Math.abs(dy)) go(dx > 0 ? 1 : -1, 0); else go(0, dy > 0 ? 1 : -1);
+      return;
+    }
+    var r = cv.getBoundingClientRect();
+    tapCell(Math.floor((e.clientX - r.left) / cell), Math.floor((e.clientY - r.top) / cell));
+  });
+  elBoard.addEventListener('pointercancel', function () { downAt = null; });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var map = { ArrowUp: 'u', ArrowDown: 'd', ArrowLeft: 'l', ArrowRight: 'r', KeyW: 'u', KeyS: 'd', KeyA: 'l', KeyD: 'r' };
+    var dir = map[e.code];
+    if (dir) { e.preventDefault(); go(DIR[dir][0], DIR[dir][1]); return; }
+    if (e.code === 'KeyZ' || e.code === 'Backspace') { e.preventDefault(); undo(); return; }
+    if (e.code === 'KeyR') { e.preventDefault(); loadLevel(levelIdx, ''); }
+  });
+
+  $('pad').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-dir]');
+    if (b) { var d = DIR[b.getAttribute('data-dir')]; go(d[0], d[1]); }
+  });
+  $('undo').addEventListener('click', undo);
+  $('restart').addEventListener('click', function () { loadLevel(levelIdx, ''); });
+  $('prev').addEventListener('click', function () { loadLevel(levelIdx - 1, ''); });
+  $('next').addEventListener('click', function () { loadLevel(levelIdx + 1, ''); });
+  $('overNext').addEventListener('click', function () { loadLevel(levelIdx + 1, ''); });
+  $('overAgain').addEventListener('click', function () { loadLevel(levelIdx, ''); });
+  $('sound').addEventListener('click', function () {
+    soundOn = !soundOn; save('sklad-sound', soundOn ? '1' : '0'); paintSound();
+    if (soundOn) tone(523, 0.12, 'triangle', 0.08);
+  });
+  $('langRu').addEventListener('click', function () { setLang('ru'); });
+  $('langEn').addEventListener('click', function () { setLang('en'); });
+
+  /* ---------- persistence ---------- */
+  function snapshot() { return { level: levelIdx, hist: solved ? '' : historyString() }; }
+  function persist() { save('sklad-progress', JSON.stringify(snapshot())); }
+
+  /* ---------- boot ---------- */
+  function boot(data) {
+    if (!data || typeof data.level !== 'number') data = loadJson('sklad-progress', null);
+    for (var i = 0; i < LEVELS.length; i++) {
+      var chip = document.createElement('button');
+      chip.type = 'button'; chip.className = 'chip'; chip.id = 'chip' + (i + 1);
+      chip.textContent = i + 1;
+      chip.addEventListener('click', (function (n) { return function () { loadLevel(n, ''); }; })(i));
+      elChips.appendChild(chip);
+    }
+    readTokens();
+    var ok = data && typeof data.level === 'number' && data.level >= 0 && data.level < LEVELS.length;
+    loadLevel(ok ? data.level : 0, ok && typeof data.hist === 'string' ? data.hist.slice(0, 4000) : '');
+    applyLang();
+    requestAnimationFrame(frame);
+  }
+
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', readTokens);
+  }
+  new MutationObserver(readTokens).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (window.ResizeObserver) new ResizeObserver(function () { if (W) layout(); }).observe(elBoard);
+  window.addEventListener('resize', function () { if (W) layout(); });
+
+  var hot = window.claude && window.claude.hot;
+  try { if (hot && hot.snapshot) hot.snapshot(snapshot); } catch (e) { /* no viewer hook */ }
+  if (hot && hot.ready) hot.ready(boot); else boot((hot && hot.data) || null);
+})();
+</script>
+</body>
+</html>
