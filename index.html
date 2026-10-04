@@ -316,6 +316,10 @@
   </div>
 
   <p class="note" id="note"></p>
+
+  <div class="controls">
+    <button class="btn" id="reset" type="button">Сбросить рекорды</button>
+  </div>
 </div>
 
 <script>
@@ -367,6 +371,7 @@
       overTitle: 'Уровень решён', overStats: 'Ходы {m} · толчки {p} · минимум {par}',
       overPar: 'Это наименьшее возможное число толчков.', overBest: 'Новый рекорд.',
       overAll: 'Все {t} уровней решены.',
+      reset: 'Сбросить рекорды', resetAsk: 'Точно сбросить? Решено уровней: {n}', resetDone: 'Рекорды и отметки уровней сброшены.',
       flag: 'с подсказкой', solvedHint: 'Уровень пройден с подсказкой. В рекорд он не идёт.',
       overHinted: 'С подсказкой уровень не отмечается решённым и не идёт в рекорд. Пройдите его заново без подсказки.',
       overHintedKept: 'Это прохождение было с подсказкой и в рекорд не идёт. Прежний рекорд сохранён.',
@@ -391,6 +396,7 @@
       overTitle: 'Level solved', overStats: 'Moves {m} · pushes {p} · minimum {par}',
       overPar: 'That is the fewest pushes possible.', overBest: 'A new best.',
       overAll: 'All {t} levels solved.',
+      reset: 'Reset records', resetAsk: 'Really reset? Levels solved: {n}', resetDone: 'Records and solved marks cleared.',
       flag: 'hint used', solvedHint: 'Level finished with a hint. It does not count as a best.',
       overHinted: 'With a hint the level is not marked as solved and does not count as a best. Play it again without a hint.',
       overHintedKept: 'This run used a hint and does not count. Your earlier best stays.',
@@ -772,6 +778,7 @@
     $('next').disabled = levelIdx === LEVELS.length - 1;
     $('undo').disabled = solved || !history.length;
     $('hintFlag').hidden = !hintUsed;
+    paintReset();
     var chips = elChips.children;
     for (var i = 0; i < chips.length; i++) {
       chips[i].classList.toggle('solved', !!records[i]);
@@ -1040,6 +1047,28 @@
   $('pad').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-dir]');
     if (b) { var d = DIR[b.getAttribute('data-dir')]; go(d[0], d[1]); }
+  });
+  // Clearing records cannot be undone, so the first press only asks and the second one does it.
+  var resetTimer = 0;
+  function paintReset() {
+    var b = $('reset'), n = countSolved();
+    if (!n && resetTimer) { clearTimeout(resetTimer); resetTimer = 0; }
+    b.textContent = resetTimer ? tr('resetAsk', { n: n }) : tr('reset');
+    b.classList.toggle('primary', !!resetTimer);
+    b.disabled = !n;
+  }
+  $('reset').addEventListener('click', function () {
+    if (!countSolved()) return;
+    if (!resetTimer) {
+      resetTimer = setTimeout(function () { resetTimer = 0; paintReset(); }, 4000);
+      paintReset();
+      return;
+    }
+    clearTimeout(resetTimer); resetTimer = 0;
+    records = {};
+    save('sklad-records', '{}');
+    say('resetDone');
+    paintHud();
   });
   $('hint').addEventListener('click', askHint);
   $('undo').addEventListener('click', undo);
