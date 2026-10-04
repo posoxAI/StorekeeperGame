@@ -4,6 +4,8 @@
 
 *Storekeeper is a browser puzzle with the rules of Sokoban: push every crate onto a marked spot. Twelve original levels, each with a proven minimum number of pushes.*
 
+**[Играть в браузере](https://posoxai.github.io/StorekeeperGame/)**
+
 <p>
   <img src="screenshots/day.png" width="300" alt="Кладовщик в светлой теме: шестой уровень, один ящик уже стоит на месте">
   <img src="screenshots/night.png" width="300" alt="The same position in the dark theme with the English interface">
@@ -75,7 +77,10 @@ node tools/verify-levels.js
 
 ## Как запустить
 
-Вся игра лежит в одном файле `index.html`. Сборка и зависимости не нужны: откройте файл в браузере.
+Вся игра лежит в одном файле `index.html`. Сборка и зависимости не нужны.
+
+- Локально: откройте `index.html` в браузере.
+- По ссылке: игра опубликована через GitHub Pages по адресу https://posoxai.github.io/StorekeeperGame/. Каждый коммит в `main` обновляет её автоматически.
 
 Шрифты загружаются с Google Fonts. Без сети игра работает на системных шрифтах.
 
