@@ -96,6 +96,10 @@ Fonts load from Google Fonts. Without a network the game falls back to system fo
 
 Levels are stored in `index.html` in the usual Sokoban notation: `#` wall, `@` storekeeper, `$` crate, `.` marked spot, `*` crate on a spot, `+` storekeeper on a spot.
 
+## Visit counter
+
+The published page counts visits with [GoatCounter](https://www.goatcounter.com/). According to the service, it sets no cookies and stores no personal data. The counter does not run when `index.html` is opened from disk.
+
 ## Credits
 
 The game was written by Claude, the AI assistant made by Anthropic: the logic, the level generator and checker, the canvas graphics, the sound and the page design.
